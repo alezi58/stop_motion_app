@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import cv2
@@ -31,6 +32,12 @@ from .camera import CameraThread
 from .project import StopMotionProject
 from .renderer import RenderError, Renderer
 from .ui_helpers import cv_frame_to_pixmap, image_path_to_thumbnail
+
+
+def app_base_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parents[1]
 
 
 class CameraPreview(QWidget):
@@ -242,7 +249,7 @@ class StopMotionWindow(QMainWindow):
         self.setWindowTitle("Моя мультистудия")
         self.resize(1180, 780)
 
-        self.base_dir = Path(__file__).resolve().parents[1]
+        self.base_dir = app_base_dir()
         self.project = StopMotionProject.open_current(self.base_dir)
         self.renderer = Renderer(self.project)
         self.camera_thread: CameraThread | None = None

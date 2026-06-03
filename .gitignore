@@ -3,3 +3,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 projects/
+build/
+dist/
+release/
+*.spec
