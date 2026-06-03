@@ -54,3 +54,32 @@ def test_prepare_render_frames_copies_sequential_order(tmp_path: Path) -> None:
     render_frames = sorted(render_dir.glob("frame_*.jpg"))
     assert [path.name for path in render_frames] == ["frame_0001.jpg", "frame_0002.jpg"]
     assert render_frames[0].read_text(encoding="utf-8") == "one"
+
+
+def test_camera_source_setting_round_trip(tmp_path: Path) -> None:
+    project = StopMotionProject.open_default(tmp_path)
+
+    assert project.camera_source() == "0"
+
+    project.save_camera_source("http://192.168.1.23:8080/video")
+
+    assert project.camera_source() == "http://192.168.1.23:8080/video"
+
+
+def test_create_new_project_uses_next_empty_project_folder(tmp_path: Path) -> None:
+    first = StopMotionProject.create_new(tmp_path)
+    write_frame(first.next_frame_path(), "one")
+    second = StopMotionProject.create_new(tmp_path)
+
+    assert first.root.name == "project_0001"
+    assert second.root.name == "project_0002"
+    assert second.list_frames() == []
+
+
+def test_open_current_project_uses_saved_current_project(tmp_path: Path) -> None:
+    project = StopMotionProject.create_new(tmp_path)
+    project.save_as_current(tmp_path)
+
+    reopened = StopMotionProject.open_current(tmp_path)
+
+    assert reopened.root == project.root
