@@ -7,6 +7,7 @@ import cv2
 from PySide6.QtCore import QRect, QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QColor, QKeySequence, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -20,6 +21,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QSlider,
     QStackedWidget,
@@ -44,7 +46,7 @@ class CameraPreview(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.setObjectName("preview")
-        self.setMinimumSize(700, 440)
+        self.setMinimumSize(560, 330)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self._frame_pixmap = QPixmap()
@@ -134,7 +136,7 @@ class VideoPlaybackView(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.setObjectName("videoView")
-        self.setMinimumSize(700, 440)
+        self.setMinimumSize(560, 330)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._frame_pixmap = QPixmap()
         self._message = "Мультфильм появится здесь"
@@ -277,7 +279,8 @@ class StopMotionWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Моя мультистудия")
-        self.resize(1180, 780)
+        self.resize(self._initial_window_size())
+        self.setMinimumSize(960, 620)
 
         self.base_dir = app_base_dir()
         self.project = StopMotionProject.open_current(self.base_dir)
@@ -319,7 +322,7 @@ class StopMotionWindow(QMainWindow):
 
         self.capture_button = QPushButton("Снять кадр")
         self.capture_button.setObjectName("captureButton")
-        self.capture_button.setMinimumHeight(74)
+        self.capture_button.setMinimumHeight(62)
         self.capture_button.setEnabled(False)
         self.capture_button.clicked.connect(self.capture_frame)
 
@@ -341,7 +344,7 @@ class StopMotionWindow(QMainWindow):
         self.grid_combo.addItem("Золотое сечение", "golden")
         self.grid_combo.currentIndexChanged.connect(self.change_grid)
 
-        self.onion_checkbox = QCheckBox("Показать прошлый кадр")
+        self.onion_checkbox = QCheckBox("Прошлый кадр")
         self.onion_checkbox.setObjectName("onionCheckbox")
         self.onion_checkbox.setChecked(True)
         self.onion_checkbox.toggled.connect(self.preview.set_onion_enabled)
@@ -363,10 +366,11 @@ class StopMotionWindow(QMainWindow):
         self.thumbnail_list.setFlow(QListWidget.Flow.LeftToRight)
         self.thumbnail_list.setWrapping(False)
         self.thumbnail_list.setUniformItemSizes(True)
-        self.thumbnail_list.setIconSize(QSize(112, 82))
-        self.thumbnail_list.setGridSize(QSize(128, 116))
-        self.thumbnail_list.setMinimumHeight(148)
-        self.thumbnail_list.setSpacing(10)
+        self.thumbnail_list.setIconSize(QSize(88, 64))
+        self.thumbnail_list.setGridSize(QSize(104, 92))
+        self.thumbnail_list.setMinimumHeight(108)
+        self.thumbnail_list.setMaximumHeight(120)
+        self.thumbnail_list.setSpacing(8)
 
         self.status = QLabel()
         self.status.setObjectName("statusLabel")
@@ -379,6 +383,17 @@ class StopMotionWindow(QMainWindow):
         self._apply_style()
         self.set_camera_state("disconnected")
         self.reload_thumbnails()
+
+    def _initial_window_size(self) -> QSize:
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            return QSize(1180, 720)
+
+        available = screen.availableGeometry()
+        width = min(1180, max(960, available.width() - 40))
+        height_margin = 70 if available.height() <= 800 else 60
+        height = min(720, max(620, available.height() - height_margin))
+        return QSize(width, height)
 
     def _build_video_page(self) -> QWidget:
         page = QWidget()
@@ -408,8 +423,8 @@ class StopMotionWindow(QMainWindow):
         central = QWidget()
         central.setObjectName("appRoot")
         root = QVBoxLayout(central)
-        root.setContentsMargins(22, 20, 22, 20)
-        root.setSpacing(16)
+        root.setContentsMargins(16, 12, 16, 12)
+        root.setSpacing(10)
 
         header = QHBoxLayout()
         header.addWidget(self.title_label, 1)
@@ -423,16 +438,16 @@ class StopMotionWindow(QMainWindow):
         preview_panel = QFrame()
         preview_panel.setObjectName("previewPanel")
         preview_layout = QVBoxLayout(preview_panel)
-        preview_layout.setContentsMargins(12, 12, 12, 12)
+        preview_layout.setContentsMargins(10, 10, 10, 10)
         preview_layout.addWidget(self.preview_stack)
 
         side_panel = QFrame()
         side_panel.setObjectName("sidePanel")
-        side_panel.setMinimumWidth(280)
-        side_panel.setMaximumWidth(320)
+        side_panel.setMinimumWidth(260)
+        side_panel.setMaximumWidth(300)
         side_layout = QVBoxLayout(side_panel)
-        side_layout.setContentsMargins(16, 16, 16, 16)
-        side_layout.setSpacing(14)
+        side_layout.setContentsMargins(12, 12, 12, 12)
+        side_layout.setSpacing(10)
 
         speed_row = QHBoxLayout()
         speed_label = QLabel("Скорость")
@@ -458,8 +473,17 @@ class StopMotionWindow(QMainWindow):
         side_layout.addStretch(1)
         side_layout.addWidget(self.status)
 
+        side_scroll = QScrollArea()
+        side_scroll.setObjectName("sideScroll")
+        side_scroll.setMinimumWidth(280)
+        side_scroll.setMaximumWidth(320)
+        side_scroll.setWidgetResizable(True)
+        side_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        side_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        side_scroll.setWidget(side_panel)
+
         work_area.addWidget(preview_panel, 1)
-        work_area.addWidget(side_panel)
+        work_area.addWidget(side_scroll)
 
         frames_header = QHBoxLayout()
         frames_label = QLabel("Лента кадров")
@@ -470,7 +494,7 @@ class StopMotionWindow(QMainWindow):
         root.addLayout(header)
         root.addLayout(work_area, 1)
         root.addLayout(frames_header)
-        root.addWidget(self.thumbnail_list)
+        root.addWidget(self.thumbnail_list, 0)
         self.setCentralWidget(central)
 
     def _setup_icons(self) -> None:
@@ -517,7 +541,8 @@ class StopMotionWindow(QMainWindow):
                 padding: 8px 16px;
             }
             #previewPanel,
-            #sidePanel {
+            #sidePanel,
+            #sideScroll {
                 background: #ffffff;
                 border: 2px solid #dbeafe;
                 border-radius: 8px;
@@ -548,10 +573,10 @@ class StopMotionWindow(QMainWindow):
                 border: none;
                 border-radius: 8px;
                 color: #ffffff;
-                font-size: 16px;
+                font-size: 15px;
                 font-weight: 800;
-                min-height: 42px;
-                padding: 8px 14px;
+                min-height: 38px;
+                padding: 7px 12px;
             }
             QPushButton:disabled {
                 background: #94a3b8;
@@ -586,8 +611,8 @@ class StopMotionWindow(QMainWindow):
             }
             #captureButton {
                 background: #f97316;
-                font-size: 20px;
-                min-height: 74px;
+                font-size: 19px;
+                min-height: 62px;
             }
             #captureButton:hover {
                 background: #ea580c;
