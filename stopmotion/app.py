@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .camera import CameraThread
+from .camera import CameraThread, scan_usb_cameras
 from .project import StopMotionProject
 from .renderer import RenderError, Renderer
 from .ui_helpers import cv_frame_to_pixmap, image_path_to_thumbnail
@@ -181,28 +181,22 @@ class CameraDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Камера")
         self.setModal(True)
-        self.setMinimumWidth(440)
+        self.setMinimumWidth(480)
 
         self.source_combo = QComboBox()
-        self.source_combo.addItem("Веб-камера 0", "0")
-        self.source_combo.addItem("Веб-камера 1", "1")
-        self.source_combo.addItem("Веб-камера 2", "2")
-        self.source_combo.addItem("Веб-камера 3", "3")
-        self.source_combo.addItem("IP-камера", "ip")
+        self.source_combo.setMinimumHeight(42)
 
         self.source_input = QLineEdit()
-        self.source_input.setPlaceholderText("http://192.168.1.23:8080/video")
+        self.source_input.setPlaceholderText("0, 1 или http://192.168.1.23:8080/video")
+
+        self.refresh_button = QPushButton("Обновить список")
+        self.refresh_button.setObjectName("dialogRefreshButton")
+        self.refresh_button.clicked.connect(self.refresh_cameras)
 
         self.error_label = QLabel()
         self.error_label.setObjectName("dialogError")
         self.error_label.setWordWrap(True)
         self.error_label.hide()
-
-        if last_source in {"0", "1", "2", "3"}:
-            self.source_combo.setCurrentIndex(int(last_source))
-        else:
-            self.source_combo.setCurrentIndex(4)
-            self.source_input.setText(last_source)
 
         self.source_combo.currentIndexChanged.connect(self._update_source_input)
 
@@ -219,14 +213,15 @@ class CameraDialog(QDialog):
         title.setObjectName("dialogTitle")
         layout.addWidget(title)
         layout.addWidget(self.source_combo)
+        layout.addWidget(self.refresh_button)
         layout.addWidget(self.source_input)
         layout.addWidget(self.error_label)
         layout.addWidget(buttons)
 
-        self._update_source_input()
+        self.refresh_cameras(last_source)
 
     def selected_source(self) -> str:
-        if self.source_combo.currentData() == "ip":
+        if self.source_combo.currentData() == "manual":
             return self.source_input.text().strip()
         return str(self.source_combo.currentData())
 
@@ -238,9 +233,44 @@ class CameraDialog(QDialog):
         super().accept()
 
     def _update_source_input(self) -> None:
-        is_ip_camera = self.source_combo.currentData() == "ip"
-        self.source_input.setVisible(is_ip_camera)
+        is_manual = self.source_combo.currentData() == "manual"
+        self.source_input.setVisible(is_manual)
         self.error_label.hide()
+
+    def refresh_cameras(self, preferred_source: str | None = None) -> None:
+        preferred_source = self.selected_source() if preferred_source is None else preferred_source
+        self.refresh_button.setEnabled(False)
+        self.refresh_button.setText("Ищу камеры...")
+        self.source_combo.blockSignals(True)
+        self.source_combo.clear()
+
+        cameras = scan_usb_cameras()
+        for index, name in cameras:
+            self.source_combo.addItem(name, str(index))
+
+        self.source_combo.addItem("Ввести адрес или номер вручную", "manual")
+
+        selected = -1
+        for index in range(self.source_combo.count()):
+            if str(self.source_combo.itemData(index)) == preferred_source:
+                selected = index
+                break
+
+        if selected >= 0:
+            self.source_combo.setCurrentIndex(selected)
+        elif preferred_source and not preferred_source.isdigit():
+            self.source_combo.setCurrentIndex(self.source_combo.count() - 1)
+            self.source_input.setText(preferred_source)
+        elif cameras:
+            self.source_combo.setCurrentIndex(0)
+        else:
+            self.source_combo.setCurrentIndex(self.source_combo.count() - 1)
+            self.source_input.setText(preferred_source or "0")
+
+        self.source_combo.blockSignals(False)
+        self._update_source_input()
+        self.refresh_button.setText("Обновить список")
+        self.refresh_button.setEnabled(True)
 
 
 class StopMotionWindow(QMainWindow):

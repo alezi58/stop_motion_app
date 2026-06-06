@@ -7,6 +7,46 @@ import cv2
 from PySide6.QtCore import QThread, Signal
 
 
+def camera_capture_source(source: str) -> str | int:
+    source = source.strip()
+    if source.isdigit():
+        return int(source)
+    return source
+
+
+def scan_usb_cameras(max_index: int = 6) -> list[tuple[int, str]]:
+    cameras: list[tuple[int, str]] = []
+    previous_log_level = None
+    if hasattr(cv2, "getLogLevel") and hasattr(cv2, "setLogLevel"):
+        previous_log_level = cv2.getLogLevel()
+        cv2.setLogLevel(0)
+    try:
+        missed_after_found = 0
+        for index in range(max_index):
+            cap = cv2.VideoCapture(index)
+            try:
+                if not cap.isOpened():
+                    if cameras:
+                        missed_after_found += 1
+                        if missed_after_found >= 2:
+                            break
+                    continue
+                ok, frame = cap.read()
+                if ok and frame is not None:
+                    cameras.append((index, f"USB-камера {index}"))
+                    missed_after_found = 0
+                elif cameras:
+                    missed_after_found += 1
+                    if missed_after_found >= 2:
+                        break
+            finally:
+                cap.release()
+    finally:
+        if previous_log_level is not None:
+            cv2.setLogLevel(previous_log_level)
+    return cameras
+
+
 class CameraThread(QThread):
     frame_ready = Signal(object)
     error = Signal(str)
@@ -18,10 +58,10 @@ class CameraThread(QThread):
         self._running = False
 
     def run(self) -> None:
-        capture_source: str | int = 0 if self.source == "0" else self.source
+        capture_source = camera_capture_source(self.source)
         cap = cv2.VideoCapture(capture_source)
         if not cap.isOpened():
-            self.error.emit("Не удалось подключиться к камере. Проверьте адрес и Wi-Fi.")
+            self.error.emit("Не удалось подключиться к камере. Проверьте камеру, адрес и Wi-Fi.")
             return
 
         self._running = True

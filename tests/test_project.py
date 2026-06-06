@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from stopmotion.camera import camera_capture_source
 from stopmotion.project import StopMotionProject
 
 
@@ -83,3 +84,14 @@ def test_open_current_project_uses_saved_current_project(tmp_path: Path) -> None
     reopened = StopMotionProject.open_current(tmp_path)
 
     assert reopened.root == project.root
+
+
+def test_numeric_camera_source_becomes_usb_camera_index() -> None:
+    assert camera_capture_source("0") == 0
+    assert camera_capture_source("1") == 1
+
+
+def test_url_camera_source_stays_string() -> None:
+    source = "http://192.168.1.23:8080/video"
+
+    assert camera_capture_source(source) == source
